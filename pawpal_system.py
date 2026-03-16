@@ -39,19 +39,21 @@ class Task:
 
     def mark_completed(self) -> None:
         """Mark this task as completed."""
-        pass
+        self.status = "completed"
 
     def is_due_today(self, target_date: date) -> bool:
         """Return True if the task is scheduled on target_date."""
-        pass
+        return self.scheduled_at.date() == target_date
 
     def is_overdue(self, current_datetime: datetime) -> bool:
         """Return True if the task is still pending and scheduled_at is in the past."""
-        pass
+        return self.status == "pending" and self.scheduled_at < current_datetime
 
     def update_priority(self, new_priority: str) -> None:
         """Update priority. Raises ValueError for unrecognised values."""
-        pass
+        if new_priority not in VALID_PRIORITIES:
+            raise ValueError(f"priority must be one of {VALID_PRIORITIES}, got '{new_priority}'")
+        self.priority = new_priority
 
 
 # ---------------------------------------------------------------------------
@@ -73,20 +75,21 @@ class Pet:
     )
 
     def add_task(self, task: Task) -> None:
-        """Forward task to the Scheduler (single source of truth)."""
-        pass
+        """Stamp the pet name onto the task and forward it to the Scheduler."""
+        task.pet_name = self.name
+        self._scheduler.add_task(task)
 
     def remove_task(self, task_id: str) -> bool:
         """Remove a task by ID via the Scheduler. Returns True if removed."""
-        pass
+        return self._scheduler.remove_task(task_id)
 
     def get_tasks(self) -> List[Task]:
         """Return all tasks for this pet from the Scheduler."""
-        pass
+        return self._scheduler.get_tasks_for_pet(self.name)
 
     def get_tasks_for_date(self, target_date: date) -> List[Task]:
         """Return this pet's tasks scheduled on target_date."""
-        pass
+        return [t for t in self.get_tasks() if t.is_due_today(target_date)]
 
 
 # ---------------------------------------------------------------------------
@@ -97,24 +100,36 @@ class Owner:
     def __init__(self, name: str) -> None:
         self.name: str = name
         self.pets: List[Pet] = []
-        self.scheduler: Scheduler = Scheduler()   # single Scheduler per owner
+        self.scheduler: Scheduler = Scheduler()  # single Scheduler per owner
 
     def add_pet(self, name: str, species: str, age: int, care_needs: List[str]) -> Pet:
         """Create a Pet, wire its _scheduler reference, register it, and return it."""
-        pass
+        pet = Pet(name, species, age, care_needs)
+        pet._scheduler = self.scheduler
+        self.pets.append(pet)
+        return pet
 
     def remove_pet(self, pet_name: str) -> bool:
-        """Remove a pet AND cascade-delete all its tasks from the Scheduler.
-        Returns True if the pet was found and removed, False otherwise."""
-        pass
+        """Remove a pet and cascade-delete its tasks; returns True if found."""
+        pet = self.get_pet(pet_name)
+        if pet is None:
+            return False
+        # Cascade: remove every task that belongs to this pet
+        for task in pet.get_tasks():
+            self.scheduler.remove_task(task.id)
+        self.pets.remove(pet)
+        return True
 
     def get_pet(self, pet_name: str) -> Optional[Pet]:
         """Return the Pet with the given name, or None if not found."""
-        pass
+        for pet in self.pets:
+            if pet.name == pet_name:
+                return pet
+        return None
 
     def list_pets(self) -> List[Pet]:
         """Return all registered pets."""
-        pass
+        return self.pets
 
 
 # ---------------------------------------------------------------------------
@@ -127,38 +142,41 @@ class Scheduler:
 
     def add_task(self, task: Task) -> None:
         """Register a task."""
-        pass
+        self.tasks.append(task)
 
     def remove_task(self, task_id: str) -> bool:
         """Remove a task by ID. Returns True if found and removed."""
-        pass
+        for i, task in enumerate(self.tasks):
+            if task.id == task_id:
+                self.tasks.pop(i)
+                return True
+        return False
 
     def get_tasks_for_pet(self, pet_name: str) -> List[Task]:
-        """Return all tasks belonging to the named pet.
-        Added to fix the missing Pet ↔ Scheduler navigation path."""
-        pass
+        """Return all tasks belonging to the named pet."""
+        return [t for t in self.tasks if t.pet_name == pet_name]
 
     def get_tasks_for_date(self, target_date: date) -> List[Task]:
         """Return all tasks scheduled on target_date."""
-        pass
+        return [t for t in self.tasks if t.is_due_today(target_date)]
 
     def get_today_tasks(self) -> List[Task]:
-        """Return all tasks scheduled for today (delegates to get_tasks_for_date)."""
-        pass
+        """Return all tasks scheduled for today."""
+        return self.get_tasks_for_date(date.today())
 
     def sort_tasks_by_time(self, tasks: List[Task]) -> List[Task]:
         """Return a new list sorted by scheduled_at (earliest first)."""
-        pass
+        return sorted(tasks, key=lambda t: t.scheduled_at)
 
     def sort_tasks_by_priority(self, tasks: List[Task]) -> List[Task]:
         """Return a new list sorted high → medium → low using PRIORITY_ORDER."""
-        pass
+        return sorted(tasks, key=lambda t: PRIORITY_ORDER[t.priority])
 
     def get_next_tasks(self, limit: int = 5) -> List[Task]:
-        """Return the next `limit` PENDING tasks ordered by scheduled_at.
-        Filters status='pending' first to avoid returning completed tasks."""
-        pass
+        """Return the next `limit` pending tasks ordered by scheduled_at."""
+        pending = self.get_pending_tasks()
+        return self.sort_tasks_by_time(pending)[:limit]
 
     def get_pending_tasks(self) -> List[Task]:
         """Return all tasks with status='pending'."""
-        pass
+        return [t for t in self.tasks if t.status == "pending"]
