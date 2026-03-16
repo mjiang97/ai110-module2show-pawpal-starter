@@ -31,7 +31,8 @@ Core user actions:
 **b. Design changes**
 
 - Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+
+Yes. The biggest change was removing `tasks` from `Pet` entirely. The original UML stored tasks in both `Pet.tasks` and `Scheduler.tasks`, which meant the two lists could easily go out of sync. We made `Scheduler` the single source of truth and had `Pet` delegate all task operations to it through a `_scheduler` reference set by `Owner`. We also added `Owner.scheduler`, cascade deletion in `remove_pet`, and input validation on `Task` via `__post_init__` — none of which were in the original UML.
 
 ---
 
